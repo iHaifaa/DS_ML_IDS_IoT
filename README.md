@@ -1,4 +1,4 @@
-# Intrusion_Detection_System_For_IoT
+# Intrusion Detection System for IoT
 
 ### Haifaa Alzahrani
 ### 9/11/2020
@@ -13,4 +13,5 @@ The dataset used is [IoTID20](https://sites.google.com/view/iot-network-intrusio
 - DoS
 - Scan 
 - MITM ARP Spoofing
+
 In the data folder, you will find the feature description. The whole dataset is not included in the data folder due to its size, but you can download it from the previous link. 
