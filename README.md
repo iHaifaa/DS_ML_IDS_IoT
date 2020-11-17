@@ -8,9 +8,9 @@ Basically, this repository is dedicated to creating a project to solve the portf
 
 ## Dataset 
 The dataset used is [IoTID20](https://sites.google.com/view/iot-network-intrusion-dataset/home). Also, it is a new dataset and has not been deeply explored yet. Moreover, it consists of network flow data with 625783 observations (each is a whole network flow) and 85 features. It has five classes namely:
-Normal
-Mirai 
-DoS
-Scan 
-MITM ARP Spoofing
+- Normal
+- Mirai 
+- DoS
+- Scan 
+- MITM ARP Spoofing
 In the data folder, you will find the feature description. The whole dataset is not included in the data folder due to its size, but you can download it from the previous link. 
