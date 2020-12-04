@@ -1,0 +1,48 @@
+---
+title: "1_Preparation"
+author: "Haifaa Alzahrani"
+date: "11/22/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# Import packages
+# Helper packages
+library(tidyverse)
+#library(dplyr)     # for data manipulation
+library(janitor) # To use remove_empty
+```
+
+## Load the dataset
+```{r}
+netFlow <- read_csv('Data/IoT_Intrusion_Dataset_2020.csv')
+```
+
+## Examine the dataset
+```{r}
+glimpse(netFlow)
+```
+
+## Drop unwanted columns and rows
+```{r}
+# Remove empties
+netFlow <- remove_empty(netFlow)
+
+# Remove unwanted columns
+netFlow <- netFlow %>% 
+  select(-Sub_Cat, -Label)
+
+# Rename Cat to Label
+netFlow <- 
+  rename(netFlow, c("Label" = "Cat")) 
+```
+# Save the prepared dataset
+```{r}
+# Save the resulted dataframe as csv
+write.csv(netFlow, "~/MISK_DSI/R/DS_Research_GoodreadsBooks/Data/IoT_Intrusion_Dataset_2020_2.csv")
+```
+

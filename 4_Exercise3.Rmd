@@ -1,0 +1,110 @@
+---
+title: "3_Exercise3"
+author: "Haifaa Alzahrani"
+date: "11/22/2020"
+output: html_document
+---
+
+## [Exercise 3](https://misk-data-science.github.io/misk-homl/docs/99x3-portfolio-builder.html)
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# Import packages
+# Helper packages
+library(tidyverse)
+library(dplyr)     # for data manipulation
+library(ggplot2)   # for awesome graphics
+
+# Modeling process packages
+library(rsample)   # for resampling procedures
+library(caret)     # for resampling and model training
+library(ranger)   # for fitting Random Forest
+
+# Results
+library(Metrics) 
+```
+
+```{r}
+# Read the dataset
+netFlow <- read_csv('Data/IoT_Intrusion_Dataset_2020_Prepared.csv')
+
+# Examine the dataset
+#The dimensions
+glimpse(netFlow)
+dim(netFlow)
+```
+
+```{r}
+netFlow <- netFlow %>% 
+  select(-Flow_ID, -X1)
+```
+
+```{r}
+
+netFlow <- rename(netFlow, c("Flow_Byts_s" = "Flow_Byts/s", 
+                  "Flow_Pkts_s" = "Flow_Pkts/s",
+                  "Bwd_IAT_Mean_1" = "Bwd_IAT_Mean.1",
+                  "Fwd_Pkts_s" = "Fwd_Pkts/s",
+                  "Bwd_Pkts_s" = "Bwd_Pkts/s",
+                  "Down_Up_Ratio" = "Down/Up_Ratio",
+                  "Fwd_Byts_b_Avg" = "Fwd_Byts/b_Avg",
+                  "Fwd_Pkts_b_Avg" = "Fwd_Pkts/b_Avg", 
+                  "Bwd_Byts_b_Avg" = "Bwd_Byts/b_Avg",
+                  "Bwd_Pkts_b_Avg" = "Bwd_Pkts/b_Avg")) 
+```
+
+```{r}
+glimpse(netFlow)
+```
+
+
+```{r}
+# We have to encode the labels into numeric data
+netFlow$Label <- factor(netFlow$Label)
+netFlow$Label <- as.numeric(netFlow$Label)
+```
+
+```{r}
+set.seed(123)  # for reproducibility
+netFlow <- sample_n(netFlow, 500)
+split  <- rsample::initial_split(netFlow, prop = 0.7, 
+                                 strata = "Label")
+netFlow_train  <- rsample::training(split)
+netFlow_test   <- rsample::testing(split)
+```
+
+### **Q1** Apply a MARS model with all features.
+### - How does the model performance compare to your previous models?
+### - How many of the features are influential? Which 10 features are considered most influential?
+### - Does your model include hinge functions? If so, explain their coefficient and plot their impact on the predicted response variable.
+### - Does your model include interactions? If so, pick the interaction effect that is most influential and explain the coefficient.
+### **Ans1** It is not applicable for the classification problems. 
+
+### **Q12** Apply a random forest model.
+### - First, apply a default random forest model.
+
+```{r}
+# number of features
+features <- setdiff(names(netFlow_train), "Label")
+
+# perform basic random forest model
+fit_default <- ranger(
+  formula    = Label ~ ., 
+  data       = netFlow_train, 
+  num.trees  = length(features) * 10,
+  mtry       = floor(length(features) / 3),
+  respect.unordered.factors = 'order',
+  verbose    = FALSE,
+  seed       = 123
+  )
+
+#Default results are based on OOB errors:
+# look at results
+fit_default
+
+# compute RMSE (RMSE = square root of MSE)
+sqrt(fit_default$prediction.error)
+```

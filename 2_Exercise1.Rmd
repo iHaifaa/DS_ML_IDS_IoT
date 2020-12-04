@@ -1,0 +1,214 @@
+---
+title: "2_Exercise1"
+author: "Haifaa Alzahrani"
+date: "11/22/2020"
+output: html_document
+---
+
+## [Exercise 1](https://misk-data-science.github.io/misk-homl/docs/99x1-portfolio-builder.html)
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# Import packages
+# Helper packages
+library(tidyverse)
+library(dplyr)     # for data manipulation
+library(ggplot2)   # for awesome graphics
+#library(corrplot)  # for correlation plot
+
+# Modeling process packages
+library(rsample)   # for resampling procedures
+library(caret)     # for resampling and model training
+#library(h2o)       # for resampling and model training
+
+# Results
+library(Metrics) 
+```
+
+```{r}
+# Read the dataset
+netFlow <- read_csv('Data/IoT_Intrusion_Dataset_2020_Prepared.csv')
+
+# Examine the dataset
+#The dimensions
+glimpse(netFlow)
+dim(netFlow)
+```
+
+```{r}
+netFlow <- netFlow %>% 
+  select(-Flow_ID, -X1)
+```
+
+
+```{r}
+set.seed(123)  # for reproducibility
+netFlow <- sample_n(netFlow, 1000)
+split  <- rsample::initial_split(netFlow, prop = 0.7, 
+                                 strata = "Label")
+netFlow_train  <- rsample::training(split)
+netFlow_test   <- rsample::testing(split)
+```
+
+```{r}
+# We have to encode the labels into numeric data, otherwise we will get an error 
+# with using   metric = "RMSE" in the next chunk
+netFlow_train$Label <- factor(netFlow_train$Label)
+netFlow_train$Label <- as.numeric(netFlow_train$Label)
+```
+
+### Q1: Assess the distribution of the target
+### - Is the response skewed?
+### - Does applying a transformation normalize the distribution?
+
+**Ans1**: The categorical target does not follow the normal distribution,
+so we cannot determine if it is skewed nor apply transformation, [for more info](https://stats.stackexchange.com/questions/129415/how-can-i-determine-if-categorical-data-is-normally-distributed). 
+Consequently, we have to use resample the data or use appropriate metrics for evaluation.
+
+```{r}
+ggplot(netFlow, aes(x = Label)) + geom_bar()
+```
+
+### Q2: Assess the dataset for missingness.
+### - How many observations have missing values?
+### - Plot the missing values. Does there appear to be any patterns to the missing values?
+### - How do you think the different imputation approaches would impact modeling results? 
+
+**Ans2:** No observations with missing values, so we cannot plot or apply imputation approaches. 
+```{r}
+sum(is.na(netFlow))
+```
+
+```{r}
+library(visdat) # to viz null
+vis_miss(netFlow, cluster = TRUE, warn_large_data = FALSE)
+```
+
+
+### Q3: Assess the variance across the features.
+### - Do any features have zero variance?
+### - Do any features have near-zero variance?
+
+**Ans3:** Yes, we have 10 features with zero variance, and 26 features with near-zero variance. Most of them are derivative from each flow, thus we will remove them. 
+```{r}
+caret::nearZeroVar(netFlow_train, saveMetrics = TRUE) %>% 
+  tibble::rownames_to_column() %>% 
+  filter(nzv)
+```
+
+### Q4: Assess the numeric features.
+### - Do some features have significant skewness?
+### - Do features have a wide range of values that would benefit from standardization?
+**Ans4:**
+```{r}
+# https://drsimonj.svbtle.com/quick-plot-of-all-variables
+# https://ggplot2-book.org/facet.html
+
+library(purrr)
+library(tidyr)
+
+netFlow_train %>% 
+  keep(is.numeric) %>% # Keep only numeric columns: keep(is.numeric)
+  gather() %>% # Convert to key-value pairs
+  ggplot(aes(value)) + # Plot the values
+    facet_wrap(~ key, scales = "free", nrow =80) + # In separate panels, nrow =
+    geom_histogram() 
+```
+### Q5: Assess the categorical features.
+### - Are categorical levels equally spread out across the features or is “lumping” occurring?
+**Ans5:** As we see, some observations have unique values for Src_IP, Dst_IP, and Timestamp. However, these unique values are important features in network flow, so we will not lump them. 
+### - Which values do you think should be one-hot or dummy encoded versus label encoded? Why? 
+**Ans5:** All of them (Src_IP, Dst_IP, Timestamp, and Label) will be encoded using label encoding. 
+```{r}
+count(netFlow_train, Src_IP) %>% arrange(n)
+
+count(netFlow_train, Dst_IP) %>% arrange(n)
+
+count(netFlow_train, Timestamp) %>% arrange(n)
+```
+
+```{r}
+# Label encoded
+library(recipes)
+recipe(Label ~ ., data = netFlow_train) %>%
+  step_integer(Label) %>%
+  prep(netFlow_train) %>%
+  bake(netFlow_train) %>%
+  count(Label)
+```
+
+
+### Q6: Execute a basic feature engineering process.
+### - First, apply a KNN model to your data without pre-applying feature engineering processes.
+
+```{r}
+# Specify resampling plan
+cv <- trainControl(
+  method = "repeatedcv", 
+  number = 10,
+  repeats = 5
+)
+```
+
+```{r}
+# Construct grid of hyperparameter values
+# I cannot execute grid search, it takes very long time on my machine
+#hyper_grid <- expand.grid(k = seq(2, 25, by = 1))
+
+# Tune a knn model using grid search
+knn_fit1 <- train(
+  Label ~ ., 
+  data = netFlow_train, 
+  method = "knn", 
+  trControl = cv, 
+  #tuneGrid = hyper_grid,
+  metric = "RMSE"
+)
+```
+
+```{r}
+knn_fit1
+```
+
+### - Create and a apply a blueprint of feature engineering processes that you think will help your model improve.
+```{r}
+blueprint <- recipe(Label ~ ., data = netFlow_train) %>%
+  step_nzv(all_nominal())  %>%
+  step_integer(matches("Src_IP|Dst_IP|Timestamp|Label")) %>%
+  #step_center(all_numeric(), -all_outcomes()) %>%
+  #step_scale(all_numeric(), -all_outcomes()) %>%
+  #step_pca(all_numeric(), -all_outcomes())
+  step_dummy(all_nominal(), -all_outcomes(), one_hot = TRUE)
+
+blueprint
+```
+
+```{r}
+prepare <- prep(blueprint, training = netFlow_train)
+```
+
+```{r}
+baked_train <- bake(prepare, new_data = netFlow_train)
+baked_test <- bake(prepare, new_data = netFlow_test)
+```
+
+### - Now reapply the KNN model to your data that has been feature engineered.
+```{r}
+# Tune a knn model using grid search
+knn_fit2 <- train(
+  blueprint, 
+  data = netFlow_train, 
+  method = "knn", 
+  trControl = cv, 
+  #tuneGrid = hyper_grid,
+  metric = "RMSE"
+)
+```
+
+```{r}
+knn_fit2
+```
+

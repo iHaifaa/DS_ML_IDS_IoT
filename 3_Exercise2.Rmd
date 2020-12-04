@@ -1,0 +1,173 @@
+---
+title: "3_Exercise2"
+author: "Haifaa Alzahrani"
+date: "11/22/2020"
+output: html_document
+---
+
+## [Exercise 2](https://misk-data-science.github.io/misk-homl/docs/99x2-portfolio-builder.html)
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# Import packages
+# Helper packages
+library(tidyverse)
+library(dplyr)     # for data manipulation
+library(ggplot2)   # for awesome graphics
+#library(corrplot)  # for correlation plot
+
+# Modeling process packages
+library(rsample)   # for resampling procedures
+library(caret)     # for resampling and model training
+#library(h2o)       # for resampling and model training
+
+# Results
+library(Metrics) 
+```
+
+```{r}
+# Read the dataset
+netFlow <- read_csv('Data/IoT_Intrusion_Dataset_2020_Prepared.csv')
+
+# Examine the dataset
+#The dimensions
+glimpse(netFlow)
+dim(netFlow)
+```
+
+```{r}
+netFlow <- netFlow %>% 
+  select(-Flow_ID, -X1)
+```
+
+
+```{r}
+# We have to encode the labels into numeric data
+netFlow$Label <- factor(netFlow$Label)
+netFlow$Label <- as.numeric(netFlow$Label)
+```
+
+```{r}
+set.seed(123)  # for reproducibility
+netFlow <- sample_n(netFlow, 500)
+split  <- rsample::initial_split(netFlow, prop = 0.7, 
+                                 strata = "Label")
+netFlow_train  <- rsample::training(split)
+netFlow_test   <- rsample::testing(split)
+```
+
+### **Q1** Depending on the type of response variable, apply a linear or logistic regression model.
+### - First, apply the model to your data without pre-applying feature engineering processes.
+```{r}
+# Train model using 10-fold cross-validation
+set.seed(123)  # for reproducibility
+(lm_model <- train(
+  form = Label ~ ., 
+  data = netFlow_train, 
+  method = "lm",
+  trControl = trainControl(method = "cv", number = 10)
+))
+```
+### - Create and a apply a blueprint of feature engineering processes that you think will help your model improve.
+
+### **Ans1** Blueprint to pre-process the data
+```{r}
+library(recipes)
+
+blueprint <- recipe(Label ~ ., data = netFlow_train) %>%
+  step_nzv(all_nominal())  %>%
+  step_integer(matches("Src_IP|Dst_IP|Timestamp|Label")) %>%
+  #step_center(all_numeric(), -all_outcomes()) %>%
+  #step_scale(all_numeric(), -all_outcomes()) %>%
+  #step_pca(all_numeric(), -all_outcomes())
+  step_dummy(all_nominal(), -all_outcomes(), one_hot = TRUE)
+
+blueprint
+```
+
+```{r}
+prepare <- prep(blueprint, training = netFlow_train)
+```
+
+```{r}
+baked_train <- bake(prepare, new_data = netFlow_train)
+baked_test <- bake(prepare, new_data = netFlow_test)
+```
+
+### - Now reapply the model to your data that has been feature engineered.
+### - Did your model performance improve?
+### **Ans1**
+```{r}
+# Train model using 10-fold cross-validation
+set.seed(123)  # for reproducibility
+(lm_model <- train(
+  Label ~ ., 
+  data = baked_train, 
+  method = "lm",
+  trControl = trainControl(method = "cv", number = 10)#,
+  #preProcess = c("nzv") #, "center", "scale"
+))   #blueprint
+```
+
+### **Q2** Apply a principal component regression model.
+### - Perform a grid search over several components.
+### - Identify and explain the performance of the optimal model.
+```{r}
+# perform 10-fold cross validation on a PCR model tuning the 
+# number of principal components to use as predictors from 1-20
+set.seed(123)
+cv_model_pcr <- train(
+  Label ~ ., 
+  data = netFlow_train, 
+  method = "pcr",
+  trControl = trainControl(method = "cv", number = 10),
+  preProcess = c("zv", "center", "scale"),
+  tuneLength = 100
+  )
+
+# model with lowest RMSE
+cv_model_pcr$bestTune
+```
+
+
+```{r}
+# results for model with lowest RMSE
+cv_model_pcr$results %>%
+  dplyr::filter(ncomp == pull(cv_model_pcr$bestTune))
+```
+
+### **Q3** Apply a partial least squares regression model.
+### - Perform a grid search over several components.
+### - Identify and explain the performance of the optimal model.
+```{r}
+# perform 10-fold cross validation on a PLS model tuning the 
+# number of principal components to use as predictors from 1-30
+set.seed(123)
+cv_model_pls <- train(
+  Label ~ ., 
+  data = netFlow_train, 
+  method = "pls",
+  trControl = trainControl(method = "cv", number = 10),
+  preProcess = c("zv", "center", "scale"),
+  tuneLength = 30
+)
+
+# model with lowest RMSE
+cv_model_pls$bestTune
+```
+```{r}
+# results for model with lowest RMSE
+cv_model_pls$results %>%
+  dplyr::filter(ncomp == pull(cv_model_pls$bestTune))
+```
+
+### **Q4** Apply a regularized regression model.
+### - Perform a grid search across alpha parameter values ranging between 0–1.
+### - What is the optimal alpha and lambda values?
+### - What is the MSE and RMSE for this optimal model?
+### - How does it compare to your previous models?
+### **Ans4** It is not applicable for the classification problems. 
+
